@@ -1,0 +1,25 @@
+{
+  "name": "ts-delay_action_small",
+  "version": "1.0.0",
+  "description": "small lambda function for API tests",
+  "main": "index.js",
+  "scripts": {
+    "build": "webpack",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Daniil Sokolov",
+  "license": "MIT",
+  "devDependencies": {
+    "@aws-sdk/client-s3": "^3.515.0",
+    "@types/aws-lambda": "^8.10.134",
+    "@types/uuid": "^9.0.8",
+    "ts-loader": "^9.5.1",
+    "typescript": "^5.3.3",
+    "webpack": "^5.90.3",
+    "webpack-cli": "^5.1.4",
+    "webpack-node-externals": "^3.0.0"
+  },
+  "dependencies": {
+    "uuid": "^9.0.1"
+  }
+}

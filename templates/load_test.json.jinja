@@ -1,0 +1,126 @@
+{
+    "_description": "all fields started from _ will be ignored",
+    "_description_VARIABLES": "values can be referenced across all levels",
+    "_description_stages": "stages are executed sequentially MUST be named as '<index>_<your stage name>'",
+    "_description_jobs": "all jobs in one stage are executed in parallel",
+    "_description_tasks": "all tasks for the jon are executed sequentially MUST be named as '<index>_<your task name>'",
+
+    "_description_jinja_code_0": "template is prepared in two sequential jinja passes!",
+    "_description_jinja_code_1": "valid json file should be created after first pass!",
+    "_description_jinja_code_2": "valid json file will be stored under template name in the root folder!",
+    "_description_jinja_code_3": "values from VARIABLES will be used on the next pass!",
+    "_lambdas_comment": "numbered lambdas has same code but different sizes",
+
+    {# list of base URIs with one domain name per AUTH. NOTE that we're refereincing the file variable! #}
+    {%- set BASE_URIS = [ 
+        {"name": "public", "uri": "{file}://test_uris.json->ApiTestPublic/{file_end}"},
+        {"name": "iam", "uri": "{file}://test_uris.json->ApiTestIam/{file_end}"},
+        {"name": "jwt", "uri": "{file}://test_uris.json->ApiTestJwt/{file_end}"},
+        {"name": "jwtcached", "uri": "{file}://test_uris.json->ApiTestJwtcached/{file_end}"},
+    ] %}
+
+    {# we'll also need pregenrated JWT for test use #}
+    {%- set auth_values = {
+        "public": "",
+        "iam": "IAM",
+        "jwt": "{file}://test_jwts.json->ApiTestJwt/{file_end}",
+        "jwtcached": "{file}://test_jwts.json->ApiTestJwtcached/{file_end}",
+     } %}
+
+
+    {# list of languages - "mock" excluded #}
+    {%- set LANGUAGES = [ "go", "py", "ts"] %}
+    {# list of sizes "128" excluded #}
+    {%- set SIZES = [ "512", "1024", "1536", "2048" ] %}
+    {# list of lambda actions #}
+    {%- set ACTIONS = [ "no", "delay", "delayactionsmall", "delayactionmid" ] %}
+
+    {# list of uris is used to generate tasks with loops #}
+    {%- set goURIs = []%}
+    {%- set pyURIs = []%}
+    {%- set tsURIs = []%}
+    {%- set allURIs = []%}
+    {# create object with list for each language #}
+    {%- set langURIs = { "go": [], "py": [], "ts": [] } %}
+    {# {%- for one_lang in LANGUAGES %} #}
+        {# {% set langURIs[one_lang] = [] %} #}
+    {# {% endfor %} #}
+
+    {%- for one_base_uri in BASE_URIS %}
+        {%- for one_lang in LANGUAGES %}
+            {%- for one_act in ACTIONS %}
+                {%- for one_size in SIZES %}
+                    {%- set root = one_lang+'-'+one_size if one_lang=="mock" else one_lang+'-'+one_act+'lambda-'+one_size -%}
+                    {%- set oneUri = {
+                        "name": one_base_uri.name+'-'+root,
+                        "uri": one_base_uri.uri+one_lang+'/'+root,
+                        "auth": auth_values[one_base_uri.name]
+                    } -%}
+                    {%- if one_lang=="go" %}
+                    {%- set tmp = goURIs.append(oneUri) -%}
+                    {% endif %}
+                    {%- if one_lang=="py" %}
+                    {%- set tmp = pyURIs.append(oneUri) -%}
+                    {% endif %}
+                    {%- if one_lang=="ts" %}
+                    {%- set tmp = tsURIs.append(oneUri) -%}
+                    {% endif %}
+                    {%- set tmp = allURIs.append(oneUri) -%}
+                    {%- set tmp = langURIs[one_lang].append(oneUri) -%}
+                {%- endfor %}
+            {%- endfor %}
+        {%- endfor %}
+    {%- endfor %}
+
+    {# key parameteres for tasks - how much time to wait between requests. NOTE that time units are different! #}    
+    {%- set warm_wait_times_sec = [10,5,6,7,8,9,7,6,10,5,6,7,8,9,10,5,6,7,8,9,7,10,8,5,10,7,8,9,7,10,10,5,6,7,8,9,7,6,10,5,6,7,8,9,10,5,6,7,8,9,7,10,8,5,10,7,8,9,7,10,5] %}
+
+    {# we keep the list of URIs separated for easy handling temp template updates (like list with just one element of allURIs) #}
+    {%- set URIs = allURIs %}
+
+    "VARIABLES": {
+        {%- for one_uri in URIs %}
+            "{{ one_uri.name }}": "{{ one_uri.uri }}"{{ "," if not loop.last else "" }}
+        {%- endfor %}
+    },
+    "stages": {
+        "_description": "for WARM test we'll run requests sequnetially as tasks and have wait as a separate stage",
+        {%- for one_lang in LANGUAGES %}
+            {%- set lang_loop = loop %}
+            {%- for wait_time in warm_wait_times_sec %}
+                "{{lang_loop.index}}{{ loop.index }}0_WARM_{{ one_lang }}UriRequestsJob{{ loop.index }}": {
+                    "jobs": {
+                        "{{ loop.index }}_{{ one_lang }}UriRequestsJob{{ loop.index }}": {
+                            "_description": "{{ one_lang }} uris requests-task job",
+                            "tasks": {
+                            {%- for one_uri in langURIs[one_lang] %}
+                                "{{ one_uri.name }}": {
+                                    "TASK_TYPE": "request",
+                                    "VARIABLES": {  "uri": "{{ one_uri.uri }}" },
+                                    "uri": "{{ uri }}",
+                                    {%- if one_uri.first %}
+                                    "report": false,
+                                    {%- endif %}
+                                    "auth": "{{ one_uri.auth }}"
+                                }{{ "," if not loop.last else "" }}
+                            {%- endfor %}
+                            }
+                        }
+                    }
+                }{{ "," if not (lang_loop.last and loop.last) else "" }}
+                {%- if not (lang_loop.last and loop.last) %}
+                "{{lang_loop.index}}{{ loop.index }}1_{{ one_lang }}SingleWaitStage{{ loop.index }}": {
+                    "jobs": {
+                        "{{ loop.index }}_{{ one_lang }}SingleWaitJob{{ loop.index }}": {
+                            "_description": "singe wait operation job",
+                            "tasks": {
+                                "{{ loop.index }}1_wait_sec": {{ wait_time }}
+                            }
+                        }
+                    }
+                }{{ "," if not (lang_loop.last and loop.last) else "" }}
+                {%- endif %}
+            {%- endfor %} {# end of wait_time loop #}
+        {%- endfor %} {# end of lang loop #}
+    }
+}
