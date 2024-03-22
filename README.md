@@ -1,7 +1,7 @@
 # General statement
 This repo contains infrastructure and testing code for Lambda-backed REST API performance analysis.
 
-See details on medium.com
+See details in the article [Performance analysis of Lambda-backed REST API on the AWS API Gateway for Python, Go and TypeScript](https://daniil-sokolov.medium.com/performance-analysis-of-lambda-backed-rest-api-on-the-aws-api-gateway-for-python-go-and-typescript-bc296732e5ae)on the medium.com
 
 Please note that this is not a "production ready" code - it's more a starting point for anyone interested in testing REST API
 
